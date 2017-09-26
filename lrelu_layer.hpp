@@ -17,14 +17,9 @@ namespace caffe {
   template <typename Dtype>
   class LReLULayer : public NeuronLayer<Dtype> {
   public:
-    /**
-     * @param param provides ReLUParameter relu_param,
-     *     with ReLULayer options:
-     *   - negative_slope (\b optional, default 0).
-     *     the value @f$ \nu @f$ by which negative values are multiplied.
-     */
     explicit LReLULayer(const LayerParameter& param)
       : NeuronLayer<Dtype>(param) {}
+
     virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 			    const vector<Blob<Dtype>*>& top);
     
@@ -38,22 +33,21 @@ namespace caffe {
      * @param top output Blob vector (length 1)
      *   -# @f$ (N \times C \times H \times W) @f$
      *      the computed outputs @f$
-     *        y = \max(0, x)
-     *      @f$ by default.  If a non-zero negative_slope @f$ \nu @f$ is provided,
-     *      the computed outputs are @f$ y = \max(0, x) + \nu \min(0, x) @f$.
+     *        y = \max(0, a * x)
      */
     virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 			   const vector<Blob<Dtype>*>& top);
     
     /**
-     * @brief Computes the error gradient w.r.t. the ReLU inputs.
+     * @brief Computes the error gradient w.r.t. the LReLU inputs.
      *
      * @param top output Blob vector (length 1), providing the error gradient with
      *      respect to the outputs
      *   -# @f$ (N \times C \times H \times W) @f$
      *      containing error gradients @f$ \frac{\partial E}{\partial y} @f$
      *      with respect to computed outputs @f$ y @f$
-     * @param propagate_down see Layer::Backward.
+     * @param propagate_down see Layer::Backward. A flag to determine whether 
+     *        the weights need to optimize.
      * @param bottom input Blob vector (length 1)
      *   -# @f$ (N \times C \times H \times W) @f$
      *      the inputs @f$ x @f$; Backward fills their diff with

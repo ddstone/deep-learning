@@ -6,6 +6,8 @@
 
 namespace caffe {
 
+
+// init
 template <typename Dtype>
 void LReLULayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 				   const vector<Blob<Dtype>*>& top) {
@@ -15,39 +17,36 @@ void LReLULayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   if (this->blobs_.size() > 0) {
     LOG(INFO) << "Skipping parameter initialization";
   } else {
+    // Initializing the weights
     const int size = Size_;
     vector<int> weight_shape(1);
-    weight_shape[0] = size;
-    this->blobs_.resize(1);
-    this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
-    Dtype* a = this->blobs_[0]->mutable_cpu_data();
+    weight_shape[0] = size; // size of the parameters of lrelu, one dimension
+    this->blobs_.resize(1); // without bias
+    this->blobs_[0].reset(new Blob<Dtype>(weight_shape)); // alloc the memory
+    Dtype* a = this->blobs_[0]->mutable_cpu_data(); // initialization the value with 1.0
     for (int i = 0; i < size; i++) {
       a[i] = (Dtype)1.0;
     }
-    this->param_propagate_down_.resize(this->blobs_.size(), true);
+    this->param_propagate_down_.resize(this->blobs_.size(), true); // needs backward to optimize
   }
 }
 
+// use bottom and weigths to get top.
 template <typename Dtype>
 void LReLULayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
-  const Dtype* bottom_data = bottom[0]->cpu_data();
-  Dtype* top_data = top[0]->mutable_cpu_data();
-  const int num = bottom[0]->num();
-  const int size = Size_;
-  const Dtype* a = this->blobs_[0]->cpu_data();
-  for (int i = 0; i < num; ++i) {
-    for (int j = 0; j < size; ++j) {
-      top_data[i*size + j] = a[j] * std::max(bottom_data[i*size + j], Dtype(0));
+  const Dtype* bottom_data = bottom[0]->cpu_data(); // data that readable
+  Dtype* top_data = top[0]->mutable_cpu_data(); // data that writable
+  const int num = bottom[0]->num(); // batch size
+  const int size = Size_; // size that when batch size = 1
+  const Dtype* a = this->blobs_[0]->cpu_data(); // weights that readble
+  for (int i = 0; i < num; ++i) { // every image in the data set, batch size in total
+    for (int j = 0; j < size; ++j) { // every value in one image
+      top_data[i*size + j] = a[j] * std::max(bottom_data[i*size + j], Dtype(0)); // i means i-th image, j means j-th value in i-th image
     }
   }
 
   // Logging Weight
-  // std::cout << "********************" << std::endl;
-  // std::cout << bottom[0]->num() << '\t' << bottom[0]->count() << std::endl;
-  // std::cout << this->blobs_[0]->count() << '\t' << this->blobs_[0]->num() << std::endl;
-  // std::cout << bottom[0]->channels() * bottom[0]->height() * bottom[0]->width() << std::endl;
-  // std::cout << "********************" << std::endl;
   ++Iter_;
   if ((Iter_+1) % 2999 == 0) {
     const char* s1 = "/home/ddstone/Development/workspace/caffe/log/cifar10_weights/";
@@ -62,11 +61,12 @@ void LReLULayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   }
 }
 
+// use top (top_diff) and weights to get bottom_diff
 template <typename Dtype>
 void LReLULayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 				    const vector<bool>& propagate_down,
 				    const vector<Blob<Dtype>*>& bottom) {
-  if (this->param_propagate_down_[0]) {
+  if (this->param_propagate_down_[0]) { // if the weights need backward
     const Dtype* top_diff = top[0]->cpu_diff();
     const Dtype* bottom_data = bottom[0]->cpu_data();
     Dtype* a_diff = this->blobs_[0]->mutable_cpu_diff();
@@ -78,17 +78,18 @@ void LReLULayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       }
     }
     for (int i = 0; i < size; ++i) {
-      a_diff[i] /= num;
+      a_diff[i] /= num; // i means i-th a_diff, to average the gradient, for adding 'num'(batch_size) times above
     }
   }
 
-  if (propagate_down[0]) {
+  if (propagate_down[0]) { // if the data need backward
     const Dtype* bottom_data = bottom[0]->cpu_data();
     const Dtype* top_diff = top[0]->cpu_diff();
     Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
     const int num = bottom[0]->num();
     const int size = Size_;
     const Dtype* a = this->blobs_[0]->cpu_data();
+    // consider it as the reverse progress of what happens in forward function
     for (int i = 0; i < num; ++i) {
       for (int j = 0; j < size; ++j) {
         bottom_diff[i*size + j] = top_diff[i*size + j] * (bottom_data[i*size + j] > 0) * a[j];
